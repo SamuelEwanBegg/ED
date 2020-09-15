@@ -9,11 +9,6 @@ import copy
 
 stem = '/home/samuel/'
 
-#stem = '/home/k1623105/'
-
-#hxmat = [-0.5,-0.4,-0.3,-0.2,-0.1,]
-#hzmat = [0,0.008,0.005,0.004,0.002] 
-
 #Inputs
 ############################################################
 tsteps = 50
@@ -23,31 +18,17 @@ tvec = step*np.arange(0,tsteps)
 N = 8
 lengthrow =3
 number_rows = 3
-#a = np.load('/home/samuelbegg/Desktop/initxiplus.npy')
-#b = np.load('/home/samuelbegg/Desktop/initxiz.npy')
-#print(a)
-#print(b)
-#psi_0 = hb.statebuild_bloch_transinvariant(a*np.exp(-b/2.0),np.exp(-b/2.0),N)      
-#print(a)
-#print(b)
-#print(np.exp(-np.real(b))*(1+np.abs(a)**2))
-#a = init #0.4 + 0.8j #0.2 + 0.3j # 1.0/np.sqrt(2)  #j + 0.3  # + 0.05 #up state coefficient
 a = 0.0
+
+#Initialize Translationally Invariant State (up coefficient, down coefficient)
 psi_0 = hb.statebuild_bloch_transinvariant(1.0/np.sqrt(1 + a*np.conj(a)),a/np.sqrt(1 + a*np.conj(a)),N)      
 psi_initial = copy.deepcopy(psi_0)
-print(psi_initial)
-
-#final_weiss = -0.478
-#uInitxiplus = np.sqrt((0.5 + final_weiss)/(0.5 - final_weiss)) 
-
-#psi_0 = hb.statebuild_bloch_transinvariant(1.0/np.sqrt(1 + a*np.conj(a)),a/np.sqrt(1 + a*np.conj(a)),N)      
-#psi_0 = hb.statebuild_bloch_transinvariant(1.0/np.sqrt(2)*1j,1.0/np.sqrt(2),N)      
 
 print(np.inner(np.conj(psi_0),psi_0),'checknorm')
 
-plots = 0 
-real = 1
-D1 = 1 #1 is 1D, 0 is custom D and/or long range interactions etc, built from loops
+#Build Hamiltonian
+real = 1 #1 for real time 0 for imaginary time
+D1 = 1 #1 is 1D, 0 is custom D and/or long range interactions etc, built from loops (see below)
 delta = 1.0
 J = -1.0
 Jz = delta*J
@@ -57,9 +38,9 @@ Jx = -0.5
 hx = -0.0
 hy = 0.0
 hz = 0.0 
-PbC = 0
+PbC = 0 #periodic boundary conditions
 
-#Initialise
+#Variables to Initialise
 #######################################
 k = 2**N 
 nummode = k
@@ -71,8 +52,9 @@ Sz = 0.5*np.asarray([[1.0,0],[0,-1.0]])
 
 st_v_ov = np.zeros([2**N,1],complex)                                                                                                                                                     
 Overlapst = np.zeros([tsteps],dtype = complex)                                                                                                  
-######################################
 
+###############################################################################
+#one-dimensional case
 
 if D1 == 1:
 
@@ -85,6 +67,8 @@ if D1 == 1:
         else:
                 H = Jx*hb.tens(Sx,Sx,N,0,PbC) +  Jy*hb.tens(Sy,Sy,N,0,PbC) + hx*hb.tens(Sx,np.identity(2),N,1,0) + hy*hb.tens(Sy,np.identity(2),N,1,0) +  hz*hb.tens(Sz,np.identity(2),N,1,0)+ Jz*hb.tens(Sz,Sz,N,0,PbC) 
 
+#################################################################################
+#two-dimensional case
 
 if D1 == 0:
 	Ho = np.zeros([2,2])                                                                                                                                                                                               
@@ -107,34 +91,35 @@ if D1 == 0:
 
 	H = Hint + hx*hb.tens(Sx,np.identity(2),N,1,0)
                                                                                                                           
-#	for x in range(0,N):                                                                                                                                                                                           
-#		print(x,(x+1)%(N))                                                                                                                                                                                     
-#		Hint = Hint + hx*hb.tens_single(Sz,Sz,x,(x+1)%(N),N)    
-
-
-
+###############################################################################
+#perform the diagonlization
 
 w,v = np.linalg.eigh(H) 
 
+################################################################################
+#Collect overlaps, normalize eigenvectors, for calculating observables
 
 if real == 1:
 	r = 1.0j
 else:
 	r = 1.0
 for i in range(0,k):
-	#print(sum(v[:,i]*np.conj(v[:,i])))
 	v[:,i] = v[:,i]/sum(v[:,i]*np.conj(v[:,i]))
 	st_v_ov[i] = np.inner(np.conj(v[:,i]),psi_0)
 	
 st_v_ovNORM = np.conj(st_v_ov)*st_v_ov
+
+#Check that squared overlaps add up to 1
 print(sum(st_v_ovNORM),'Should be 1, overlap when t = 0')
 
 sz = ED.Sz()
 sy = ED.Sy()
 sx = ED.Sx()
 
+
 if N > 1:
 
+    # Initial Observables Operators
     magMatrixZ = hb.tens(sz,np.identity(2),N,1,0)
     magMatrixX = hb.tens(sx,np.identity(2),N,1,0)
     magMatrixY = hb.tens(sy,np.identity(2),N,1,0)
@@ -147,6 +132,7 @@ if N > 1:
     dimsB = 2**NB
 
 
+    # Initial Observables Measurement `Outputs'
     energy = np.zeros([tsteps,1],dtype = complex)
     magnetisationZ = np.zeros([tsteps,1],dtype = complex)
     magnetisationX = np.zeros([tsteps,1],dtype = complex)
@@ -157,9 +143,10 @@ if N > 1:
     correlation = np.zeros([tsteps,1],dtype = complex)
     correlationX = np.zeros([tsteps,1],dtype = complex)
     magtimeav = np.zeros([tsteps,1])
-    #Overlap = np.zeros([tsteps],dtype = complex)    
 
 wavefunction = []
+
+#calculate observables at every time
 for ii in range(0,np.size(tvec)):
     print(ii)
    
@@ -183,17 +170,12 @@ for ii in range(0,np.size(tvec)):
         correlationX[ii] = (1.0/float(N-1+PbC))*np.trace(np.dot(corrMatX,densityMatrix[0,:,:])/np.trace(densityMatrix[0,:,:]), axis1 = 0, axis2 = 1) #first axis is time 
         entropy[ii] = -np.trace(np.dot(reduced_density,scipy.linalg.logm(reduced_density)))  
 
-print(np.shape(wavefunction))
-#wavefunction = np.reshape(wavefunction,(100,2))
-#print(np.shape(wavefunction))
-#np.savetxt('/home/samuel/Desktop/wavefunctionRe.txt',np.real(wavefunction),delimiter=',',fmt = '%f') 
-#np.savetxt('/home/samuel/Desktop/wavefunctionIm.txt',np.imag(wavefunction),delimiter=',',fmt = '%f') 
-
 
 for ii in range(1,np.size(tvec)):
     if N > 1:
         energy[ii] = -(1.0/(N*(ii)*step))*np.log(Overlap[ii]) 
 
+#save outputs to desktop and plot
 if N > 1:
     np.save(stem + 'Desktop/recentX_plat',magnetisationX[np.size(magnetisationZ)-1])
     np.save(stem + 'Desktop/recentY_plat',magnetisationY[np.size(magnetisationZ)-1])
